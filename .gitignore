@@ -1,0 +1,14 @@
+.env
+
+__pycache__/
+*.pyc
+*.pyo
+
+pipelines/feature_repo/data/registry.db
+pipelines/feature_repo/data/online_store.db
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/
