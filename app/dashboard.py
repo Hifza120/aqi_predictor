@@ -278,33 +278,56 @@ def load_models ():
             features [h ]=joblib .load (fp )
     return models ,features 
 
+import requests, os
+from dotenv import load_dotenv
+
 def get_live_features():
-    """
-    Read the most recent row from the parquet file as live features.
-    Also recompute time features for the current UTC moment so that
-    sin/cos hour etc. reflect NOW, not when the parquet was last written.
-    """
     df = load_history()
     last = df.iloc[-1].to_dict()
 
-    # Override time features with current UTC time
+    # Fetch live AQI directly from AQICN
+    try:
+        token = os.getenv("AQICN_TOKEN", "52b9bee1d5ccafa0bbe9654db72316ca58e6a4c6")
+        resp = requests.get(
+            f"https://api.waqi.info/feed/A471607/?token={token}",
+            timeout=5
+        ).json().get("data", {})
+
+        live_aqi = resp.get("aqi")
+        live_pm25 = resp.get("iaqi", {}).get("pm25", {}).get("v")
+        live_pm10 = resp.get("iaqi", {}).get("pm10", {}).get("v")
+        live_temp = resp.get("iaqi", {}).get("t", {}).get("v")
+        live_hum  = resp.get("iaqi", {}).get("h", {}).get("v")
+
+        if live_aqi:
+            last["aqi"]         = live_aqi
+            last["aqi_lag1"]    = live_aqi
+            last["aqi_change_rate"] = live_aqi - last.get("aqi", live_aqi)
+        if live_pm25: last["pm25"] = live_pm25
+        if live_pm10: last["pm10"] = live_pm10
+        if live_temp: last["temperature"] = live_temp
+        if live_hum:  last["humidity"] = live_hum
+
+    except Exception:
+        pass  # silently fall back to parquet values
+
+    # Override time features with current UTC
     now = datetime.now(timezone.utc)
-    last["hour"]       = now.hour
-    last["day"]        = now.day
-    last["month"]      = now.month
-    last["year"]       = now.year
-    last["day_of_week"]= now.weekday()
-    last["sin_hour"]   = np.sin(2 * np.pi * now.hour / 24)
-    last["cos_hour"]   = np.cos(2 * np.pi * now.hour / 24)
-    last["sin_month"]  = np.sin(2 * np.pi * now.month / 12)
-    last["cos_month"]  = np.cos(2 * np.pi * now.month / 12)
-    last["sin_day"]    = np.sin(2 * np.pi * now.day / 31)
-    last["cos_day"]    = np.cos(2 * np.pi * now.day / 31)
-    last["sin_dow"]    = np.sin(2 * np.pi * now.weekday() / 7)
-    last["cos_dow"]    = np.cos(2 * np.pi * now.weekday() / 7)
+    last["hour"]        = now.hour
+    last["day"]         = now.day
+    last["month"]       = now.month
+    last["year"]        = now.year
+    last["day_of_week"] = now.weekday()
+    last["sin_hour"]    = np.sin(2 * np.pi * now.hour / 24)
+    last["cos_hour"]    = np.cos(2 * np.pi * now.hour / 24)
+    last["sin_month"]   = np.sin(2 * np.pi * now.month / 12)
+    last["cos_month"]   = np.cos(2 * np.pi * now.month / 12)
+    last["sin_day"]     = np.sin(2 * np.pi * now.day / 31)
+    last["cos_day"]     = np.cos(2 * np.pi * now.day / 31)
+    last["sin_dow"]     = np.sin(2 * np.pi * now.weekday() / 7)
+    last["cos_dow"]     = np.cos(2 * np.pi * now.weekday() / 7)
 
-    return last, "parquet"
-
+    return last, "live+parquet"
 
 def run_forecasts(live, models, features):
     now = datetime.now(timezone.utc)
