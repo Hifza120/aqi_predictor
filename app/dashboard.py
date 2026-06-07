@@ -329,7 +329,9 @@ def run_forecasts (live ,models ,features ):
     results ={}
     for h ,model in models .items ():
         feats =features [h ]
-        row ={f :live .get (f ,0.0 )for f in feats }
+        df_hist = load_history()
+        last = df_hist.iloc[-1].to_dict()
+        row = {f: live.get(f) if live.get(f) is not None else last.get(f, 0.0) for f in feats}
         X =pd .DataFrame ([row ])[feats ]
         pred =float (model .predict (X )[0 ])
         results [h ]=max (0 ,round (pred ,1 ))
