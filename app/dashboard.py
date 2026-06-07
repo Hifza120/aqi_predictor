@@ -7,7 +7,7 @@ import plotly .express as px
 from plotly .subplots import make_subplots 
 from pathlib import Path 
 from datetime import datetime ,timezone ,timedelta 
-from feast import FeatureStore 
+
 
 
 ROOT =Path (__file__ ).resolve ().parent .parent 
@@ -278,64 +278,52 @@ def load_models ():
             features [h ]=joblib .load (fp )
     return models ,features 
 
-def get_live_features ():
-    """Try Feast online store, fall back to parquet."""
-    try :
-        store =FeatureStore (repo_path =str (FEATURE_REPO ))
-        online =store .get_online_features (
-        features =[
-        "aqi_raw:aqi","aqi_raw:pm25","aqi_raw:pm10",
-        "aqi_raw:no2","aqi_raw:so2","aqi_raw:co","aqi_raw:o3",
-        "aqi_raw:temperature","aqi_raw:humidity",
-        "aqi_raw:precipitation","aqi_raw:cloud_cover",
-        "aqi_raw:wind_speed","aqi_raw:boundary",
-        "aqi_lag:pm25_lag1","aqi_lag:pm25_lag24",
-        "aqi_lag:pm25_roll_mean_6","aqi_lag:pm25_roll_mean_24",
-        "aqi_lag:aqi_lag1","aqi_lag:aqi_lag24",
-        "aqi_lag:aqi_change_rate",
-        "aqi_lag:aqi_roll_mean_6","aqi_lag:aqi_roll_mean_24",
-        "aqi_time:hour","aqi_time:day","aqi_time:month",
-        "aqi_time:year","aqi_time:day_of_week",
-        "aqi_time:sin_hour","aqi_time:cos_hour",
-        "aqi_time:sin_month","aqi_time:cos_month",
-        "aqi_time:sin_day","aqi_time:cos_day",
-        "aqi_time:sin_dow","aqi_time:cos_dow",
-        ],
-        entity_rows =[{"station_id":"lahore_main"}],
-        ).to_dict ()
-        live ={k .split (":")[-1 ]:v [0 ]for k ,v in online .items ()}
-        return live ,"online"
-    except Exception :
-        df =load_history ()
-        last =df .iloc [-1 ].to_dict ()
-        return last ,"parquet"
+def get_live_features():
+    """
+    Read the most recent row from the parquet file as live features.
+    Also recompute time features for the current UTC moment so that
+    sin/cos hour etc. reflect NOW, not when the parquet was last written.
+    """
+    df = load_history()
+    last = df.iloc[-1].to_dict()
 
-def run_forecasts (live ,models ,features ):
-    now =datetime .now (timezone .utc )
-    live .setdefault ("hour",now .hour )
-    live .setdefault ("day",now .day )
-    live .setdefault ("month",now .month )
-    live .setdefault ("year",now .year )
-    live .setdefault ("day_of_week",now .weekday ())
-    live .setdefault ("sin_hour",np .sin (2 *np .pi *now .hour /24 ))
-    live .setdefault ("cos_hour",np .cos (2 *np .pi *now .hour /24 ))
-    live .setdefault ("sin_month",np .sin (2 *np .pi *now .month /12 ))
-    live .setdefault ("cos_month",np .cos (2 *np .pi *now .month /12 ))
-    live .setdefault ("sin_day",np .sin (2 *np .pi *now .day /31 ))
-    live .setdefault ("cos_day",np .cos (2 *np .pi *now .day /31 ))
-    live .setdefault ("sin_dow",np .sin (2 *np .pi *now .weekday ()/7 ))
-    live .setdefault ("cos_dow",np .cos (2 *np .pi *now .weekday ()/7 ))
+    # Override time features with current UTC time
+    now = datetime.now(timezone.utc)
+    last["hour"]       = now.hour
+    last["day"]        = now.day
+    last["month"]      = now.month
+    last["year"]       = now.year
+    last["day_of_week"]= now.weekday()
+    last["sin_hour"]   = np.sin(2 * np.pi * now.hour / 24)
+    last["cos_hour"]   = np.cos(2 * np.pi * now.hour / 24)
+    last["sin_month"]  = np.sin(2 * np.pi * now.month / 12)
+    last["cos_month"]  = np.cos(2 * np.pi * now.month / 12)
+    last["sin_day"]    = np.sin(2 * np.pi * now.day / 31)
+    last["cos_day"]    = np.cos(2 * np.pi * now.day / 31)
+    last["sin_dow"]    = np.sin(2 * np.pi * now.weekday() / 7)
+    last["cos_dow"]    = np.cos(2 * np.pi * now.weekday() / 7)
 
-    results ={}
-    for h ,model in models .items ():
-        feats =features [h ]
-        df_hist = load_history()
-        last = df_hist.iloc[-1].to_dict()
-        row = {f: live.get(f) if live.get(f) is not None else last.get(f, 0.0) for f in feats}
-        X =pd .DataFrame ([row ])[feats ]
-        pred =float (model .predict (X )[0 ])
-        results [h ]=max (0 ,round (pred ,1 ))
-    return results ,now 
+    return last, "parquet"
+
+
+def run_forecasts(live, models, features):
+    now = datetime.now(timezone.utc)
+
+    # Use parquet last row as fallback for any missing feature
+    df_hist = load_history()
+    parquet_last = df_hist.iloc[-1].to_dict()
+
+    results = {}
+    for h, model in models.items():
+        feats = features[h]
+        row = {
+            f: live[f] if live.get(f) is not None else parquet_last.get(f, 0.0)
+            for f in feats
+        }
+        X = pd.DataFrame([row])[feats]
+        pred = float(model.predict(X)[0])
+        results[h] = max(0, round(pred, 1))
+    return results, now
 
 
 
@@ -412,7 +400,7 @@ if "Live Dashboard"in page :
         forecasts ,now =run_forecasts (live ,models ,feat_sets )
 
     current_aqi =live .get ("aqi")
-    src_badge =" Online Store"if source =="online"else " Parquet Cache"
+    src_badge = " Latest Parquet"
 
 
     if current_aqi and current_aqi >150 :
