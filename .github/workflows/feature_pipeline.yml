@@ -2,8 +2,8 @@ name: Hourly Feature Pipeline
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour
-  workflow_dispatch:        # manual trigger
+    - cron: "0 * * * *"
+  workflow_dispatch:
 
 jobs:
   fetch-and-push:
@@ -26,11 +26,18 @@ jobs:
           restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Create .env from secrets
         run: |
           echo "AQICN_TOKEN=${{ secrets.AQICN_TOKEN }}" > pipelines/.env
+
+      - name: Apply Feast definitions
+        run: |
+          cd pipelines/feature_repo
+          feast apply
 
       - name: Run fetch_data.py (push live features to online store)
         run: |
@@ -39,8 +46,12 @@ jobs:
 
       - name: Commit updated online store (if changed)
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add pipelines/feature_repo/data/
-          git diff --cached --quiet || git commit -m "chore: hourly feature update $(date -u '+%Y-%m-%d %H:%M UTC')"
+
+          git diff --cached --quiet || \
+          git commit -m "chore: hourly feature update $(date -u '+%Y-%m-%d %H:%M UTC')"
+
           git push
