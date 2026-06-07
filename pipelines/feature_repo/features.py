@@ -1,12 +1,3 @@
-"""
-features.py  —  Feast feature definitions for AQI Lahore predictor
-──────────────────────────────────────────────────────────────────
-Place this file inside feature_repo/ (done automatically by feature_store_pipeline.py)
-
-Fixes:
-  #5  — wind_speed + boundary now registered in Feast schema (were fetched but never registered)
-  #9  — feature view names match what test.py expects: aqi_raw, aqi_time, aqi_lag, aqi_targets
-"""
 
 from datetime import timedelta
 from feast import Entity, FeatureView, Field, FileSource, PushSource
