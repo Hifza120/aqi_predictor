@@ -164,7 +164,7 @@ python test.py
 
 ---
 
-## ⚡ Automated Pipelines (GitHub Actions)
+## ⚡ Automated Pipelines 
 
 | Workflow | Schedule | What it does |
 |----------|----------|-------------|
