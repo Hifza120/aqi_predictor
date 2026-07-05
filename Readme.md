@@ -4,7 +4,7 @@ An end-to-end ML system that predicts the Air Quality Index (AQI) for Lahore, Pa
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 Weather & Pollution APIs
