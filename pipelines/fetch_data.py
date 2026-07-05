@@ -89,7 +89,14 @@ def _hourly(data, key, hour):
 
 
 # ── STEP 1: Resolve best AQI value (fallback before anything else) ────────────
-aqi_val          = aqicn.get("aqi")
+# Convert AQI to a number if possible
+aqi_val = aqicn.get("aqi")
+
+try:
+    aqi_val = float(aqi_val)
+except (TypeError, ValueError):
+    aqi_val = None
+
 aqi_from_openmeteo = _hourly(aq, "european_aqi", utc_hour)
 
 if aqi_val is None or (aqi_from_openmeteo and aqi_val < aqi_from_openmeteo * 0.5):
