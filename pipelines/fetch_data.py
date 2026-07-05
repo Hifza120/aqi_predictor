@@ -94,7 +94,7 @@ aqi_from_openmeteo = _hourly(aq, "european_aqi", utc_hour)
 
 if aqi_val is None or (aqi_from_openmeteo and aqi_val < aqi_from_openmeteo * 0.5):
     aqi_val = aqi_from_openmeteo
-    print(f"  ⚠️  AQICN AQI overridden with Open-Meteo: {aqi_from_openmeteo}")
+    print(f"  AQICN AQI overridden with Open-Meteo: {aqi_from_openmeteo}")
 
 # ── STEP 2: Build combined dict with correct AQI ─────────────────────────────
 combined = {
