@@ -99,6 +99,21 @@ except (TypeError, ValueError):
 
 aqi_from_openmeteo = _hourly(aq, "european_aqi", utc_hour)
 
+try:
+    aqi_from_openmeteo = float(aqi_from_openmeteo)
+except (TypeError, ValueError):
+    aqi_from_openmeteo = None
+
+if (
+    aqi_val is None
+    or (
+        aqi_from_openmeteo is not None
+        and aqi_val < aqi_from_openmeteo * 0.5
+    )
+):
+    aqi_val = aqi_from_openmeteo
+    print(f"AQICN AQI overridden with Open-Meteo: {aqi_from_openmeteo}")
+    
 if aqi_val is None or (aqi_from_openmeteo and aqi_val < aqi_from_openmeteo * 0.5):
     aqi_val = aqi_from_openmeteo
     print(f"  AQICN AQI overridden with Open-Meteo: {aqi_from_openmeteo}")
